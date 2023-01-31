@@ -72,7 +72,6 @@ class TVHRecord:
             self.auth = None
         self.server_base_url = server_base_url
         ts_query = f'{self.server_base_url}/{ts_url}'
-        import pdb; pdb.set_trace()
         ts_response = requests.get(ts_query, params=payload, timeout=30,
                                    auth=self.auth)
         if ts_response.status_code != 200:
