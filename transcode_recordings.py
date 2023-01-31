@@ -28,9 +28,13 @@ import time
 
 import requests
 
-# global configuration
 
-TS_SERVER = 'http://localhost/tv'
+# Configuration
+
+TVHEADEND_SERVER_URL = "http://localhost/tv"
+TVHEADEND_SERVER_USER = None
+TVHEADEND_SERVER_PASSWD = None
+
 
 class TVHRecordParameter:
     """
@@ -54,16 +58,23 @@ class TVHRecord:
     """
     class that represents a tvheadend record
     """
-    TS_SERVER = 'http://localhost/tv'
-
-    def __init__(self, uuid):
+    def __init__(self, uuid, server_base_url, user=None, passwd=None):
         """
         get element by uuid
         """
         ts_url = 'api/idnode/load'
         payload = {'uuid': uuid}
-        ts_query = f'{self.TS_SERVER}/{ts_url}'
-        ts_response = requests.get(ts_query, params=payload, timeout=30)#, auth=(ts_user, ts_pass))
+        self.user = user
+        self.passwd = passwd
+        if user:
+            self.auth = (user, passwd)
+        else:
+            self.auth = None
+        self.server_base_url = server_base_url
+        ts_query = f'{self.server_base_url}/{ts_url}'
+        import pdb; pdb.set_trace()
+        ts_response = requests.get(ts_query, params=payload, timeout=30,
+                                   auth=self.auth)
         if ts_response.status_code != 200:
             return
         self.record_dict = ts_response.json()['entries'][0]
@@ -83,10 +94,13 @@ class TVHDVRRecord(TVHRecord):
     class that represents a recording of the DVR
     """
 
-    def __init__(self, uuid):
-        super().__init__(uuid)
-        channel_record = TVHRecord(self.channel.value)
+    def __init__(self, uuid, server_base_url, user=None, passwd=None):
+        super().__init__(uuid, server_base_url, user, passwd)
+        channel_record = TVHRecord(self.channel.value, self.server_base_url,
+                                  self.user, self.passwd)
         self.disp_channel = channel_record.name
+        self.metadata_file = None
+        self.transcoded_path = None
 
     def create_metadata_file(self, filename):
         """
@@ -116,7 +130,7 @@ network={self.disp_channel}'''
         temp_out_file = os.path.join(self.temp_dir.name, transcoded_file)
         self.transcoded_path = os.path.join(os.path.dirname(self.filename.value), transcoded_file)
         self.create_metadata_file(self.metadata_file)
-            
+
         ffmpeg_call = ['ffmpeg', '-hide_banner', '-i', self.filename.value, '-i',
                        self.metadata_file, '-vsync', 'cfr',
                        '-c:v', 'h264_v4l2m2m', '-b:v', '1.8M',
@@ -140,13 +154,12 @@ network={self.disp_channel}'''
         moves the file in the TVheadend database
         """
         ts_url = 'api/dvr/entry/filemoved'
-        #    ts_user = 'admin'
-        #    ts_pass = 'admin'
-        ts_query = f'{self.TS_SERVER}/{ts_url}'
+        ts_query = f'{self.server_base_url}/{ts_url}'
         post_data = {'src': self.filename.value, 'dst': self.transcoded_path }
         if not os.path.exists(os.path.dirname(self.transcoded_path)):
             return False
-        ts_response = requests.post(ts_query, data=post_data, timeout=30)#, auth=(ts_user, ts_pass))
+        ts_response = requests.post(ts_query, data=post_data, timeout=30,
+                                    auth=self.auth)
         if ts_response.status_code != 200:
             print('Error code %d\n%s' % (ts_response.status_code, ts_response.content, ))
             return False
@@ -163,17 +176,20 @@ def main():
     """
 
     if len(sys.argv) != 3:
-        print("use uid of DVR record as first and only argument")
+        print("use uid of DVR record as first and and the status as the second "
+              "argument")
         return
     record_uuid = sys.argv[1]
     status = sys.argv[2]
+    # check if recording was successful
     if status != "OK":
         return
-    record = TVHDVRRecord(record_uuid)
+    record = TVHDVRRecord(record_uuid, TVHEADEND_SERVER_URL,
+                          TVHEADEND_SERVER_USER,
+                          TVHEADEND_SERVER_PASSWD)
     try:
         record.start_transcoding()
     except:
         pass
-    
 
 main()

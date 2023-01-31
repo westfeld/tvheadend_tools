@@ -10,5 +10,9 @@ This script uses python3, requests and ffmpeg
 
 ### Usage
 
+Configure the script by modifying the global variables `TVHEADEND_SERVER_URL` to point to
+the url of the server and for authentication username and password in `TVHEADEND_SERVER_USER`
+and `TVHEADEND_SERVER_PASSWD`, respectively.
+
 Use the script as a post-processing script in a tvheadend DVR configuration.
 Invoke the script like `transcode_recordings.py %U %e`.
